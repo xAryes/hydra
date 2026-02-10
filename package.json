@@ -1,23 +1,26 @@
 {
   "name": "hydra",
-  "version": "0.1.0",
-  "description": "Self-replicating agent economy on Solana",
+  "version": "0.3.0",
+  "description": "Self-replicating agent economy on Solana — autonomous agents that earn, spawn children, and share revenue on-chain",
   "private": true,
   "type": "module",
   "scripts": {
     "agent": "bun run agent/src/index.ts",
     "dashboard": "bun run app/server.ts",
+    "health": "curl -s http://localhost:3100/health | bun -e 'console.log(JSON.stringify(await Bun.stdin.json(), null, 2))'",
     "test": "anchor test"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
     "@solana/web3.js": "^1.98.0",
     "@solana/spl-token": "^0.4.12",
-    "dotenv": "^16.4.7",
     "hono": "^4.7.0"
   },
   "devDependencies": {
     "@types/bun": "^1.2.3",
     "typescript": "^5.9.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
   }
 }

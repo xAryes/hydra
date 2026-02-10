@@ -191,10 +191,16 @@ A `setInterval` (30 seconds) iterates all agents and calls `checkAndSpawn()`. Th
 
 The Hono HTTP server serves:
 
+- **Health monitoring** (`/health`) — RPC connectivity, program reachability, uptime
 - **Agent management endpoints** (`/agents`, `/tree`, `/stats`)
 - **Service endpoints** (`/service/:wallet`)
 - **On-chain state** (`/on-chain`) — fetches live data from Solana
 - **Simulation** (`/simulate`) — triggers N service calls with default params per specialization
+
+**Security middleware stack (v0.3.0):**
+1. CORS — Origin whitelist (localhost only, not wildcard `*`)
+2. Security headers — `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`
+3. Rate limiting — Per-IP sliding window, 60 req/min, 429 on exceed
 
 The startup sequence:
 
@@ -206,8 +212,9 @@ The startup sequence:
    a. Load deploy keypair (deploy-keypair.json)
    b. initializeRegistry() — idempotent
    c. registerRootAgent() — idempotent
-5. Start Hono HTTP server
+5. Start Hono HTTP server (with middleware stack)
 6. Start auto-spawn loop (30s interval)
+7. Register SIGINT/SIGTERM handlers for graceful shutdown
 ```
 
 ### 5. Services Layer

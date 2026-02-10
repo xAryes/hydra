@@ -11,6 +11,7 @@
 - [Overview](#overview)
 - [Endpoints](#endpoints)
   - [GET /](#get-)
+  - [GET /health](#get-health)
   - [GET /agents](#get-agents)
   - [GET /agents/:wallet](#get-agentswallet)
   - [GET /tree](#get-tree)
@@ -25,7 +26,14 @@
 
 ## Overview
 
-The Hydra agent runtime exposes a RESTful JSON API via Hono on Bun. All responses are `application/json`. CORS is enabled for all origins.
+The Hydra agent runtime exposes a RESTful JSON API via Hono on Bun. All responses are `application/json`.
+
+### Security (v0.3.0)
+
+- **CORS:** Restricted to localhost origins (not wildcard)
+- **Rate limiting:** 60 requests per minute per IP (sliding window)
+- **Security headers:** `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, `Referrer-Policy`
+- **Input validation:** All Solana addresses validated, simulate calls capped at 100
 
 ### Authentication
 
@@ -35,6 +43,17 @@ No authentication is required. The API is designed for local development and dem
 
 ```
 Content-Type: application/json
+```
+
+### Rate Limit Response
+
+When rate limited, the API returns:
+
+```json
+HTTP/1.1 429 Too Many Requests
+{
+  "error": "Rate limit exceeded. Try again in 60 seconds."
+}
 ```
 
 ---
@@ -50,11 +69,12 @@ Service information and available endpoints.
 ```json
 {
   "name": "Hydra — Self-Replicating Agent Economy",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "agents": 3,
   "programId": "HmHxoZHi5GN3187RoXPDAXcjY5j1ghTdXn54u9pVzrvp",
   "endpoints": [
     "GET  /                  — This info",
+    "GET  /health            — Health check + RPC status",
     "GET  /agents            — All running agents",
     "GET  /agents/:wallet    — Agent details",
     "POST /service/:wallet   — Call agent service (paid)",
@@ -63,6 +83,48 @@ Service information and available endpoints.
     "GET  /on-chain          — On-chain state from Solana",
     "POST /simulate          — Simulate traffic"
   ]
+}
+```
+
+---
+
+### GET /health
+
+Health check with RPC connectivity and program reachability. Returns HTTP 200 when healthy, 503 when degraded.
+
+**Response (healthy):**
+
+```json
+{
+  "status": "healthy",
+  "uptime": "3600s",
+  "agents": 3,
+  "rpc": {
+    "connected": true,
+    "latencyMs": 142
+  },
+  "program": {
+    "id": "HmHxoZHi5GN3187RoXPDAXcjY5j1ghTdXn54u9pVzrvp",
+    "reachable": true
+  }
+}
+```
+
+**Response (degraded):**
+
+```json
+{
+  "status": "degraded",
+  "uptime": "120s",
+  "agents": 1,
+  "rpc": {
+    "connected": false,
+    "latencyMs": -1
+  },
+  "program": {
+    "id": "HmHxoZHi5GN3187RoXPDAXcjY5j1ghTdXn54u9pVzrvp",
+    "reachable": false
+  }
 }
 ```
 

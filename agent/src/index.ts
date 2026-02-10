@@ -7,6 +7,10 @@ import {
   SPECIALIZATIONS,
   PROGRAM_ID,
   loadDeployKeypair,
+  startedAt,
+  MAX_SIMULATE_CALLS,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_MAX_REQUESTS,
 } from "./config.js";
 import {
   initializeRegistry,
@@ -32,7 +36,72 @@ if (fs.existsSync(envPath)) {
 }
 
 const app = new Hono();
-app.use("/*", cors());
+
+// --- CORS: allow dashboard and localhost origins ---
+const ALLOWED_ORIGINS = [
+  "http://localhost:3100",
+  "http://localhost:3000",
+  "http://127.0.0.1:3100",
+  "http://127.0.0.1:3000",
+];
+app.use(
+  "/*",
+  cors({
+    origin: (origin) => {
+      if (!origin) return "http://localhost:3100"; // same-origin requests
+      if (ALLOWED_ORIGINS.includes(origin)) return origin;
+      return "http://localhost:3100";
+    },
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    maxAge: 3600,
+  })
+);
+
+// --- Security headers ---
+app.use("/*", async (c, next) => {
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
+  c.header("X-XSS-Protection", "1; mode=block");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+});
+
+// --- Rate limiter (sliding window, per IP) ---
+const rateLimitMap = new Map<string, number[]>();
+
+function rateLimit(ip: string, limit = RATE_LIMIT_MAX_REQUESTS): boolean {
+  const now = Date.now();
+  const window = rateLimitMap.get(ip) || [];
+  const recent = window.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
+  if (recent.length >= limit) return false;
+  recent.push(now);
+  rateLimitMap.set(ip, recent);
+  return true;
+}
+
+// Prune stale entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, window] of rateLimitMap) {
+    const recent = window.filter((ts) => now - ts < RATE_LIMIT_WINDOW_MS);
+    if (recent.length === 0) rateLimitMap.delete(ip);
+    else rateLimitMap.set(ip, recent);
+  }
+}, 300_000);
+
+app.use("/*", async (c, next) => {
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+    c.req.header("x-real-ip") ||
+    "unknown";
+  if (!rateLimit(ip)) {
+    return c.json(
+      { error: "Rate limit exceeded. Try again in 60 seconds." },
+      429
+    );
+  }
+  await next();
+});
 
 const PORT = parseInt(process.env.AGENT_PORT || "3100");
 const ROOT_PORT = PORT;
@@ -120,15 +189,16 @@ async function initOnChain(rootWallet: PublicKey): Promise<void> {
 // API Routes
 // ============================================================================
 
-// Health check
+// Info endpoint
 app.get("/", (c) => {
   return c.json({
     name: "Hydra — Self-Replicating Agent Economy",
-    version: "0.2.0",
+    version: "0.3.0",
     agents: runningAgents.size,
     programId: PROGRAM_ID.toBase58(),
     endpoints: [
       "GET  /                  — This info",
+      "GET  /health            — Health check + RPC status",
       "GET  /agents            — All running agents",
       "GET  /agents/:wallet    — Agent details",
       "POST /service/:wallet   — Call agent service (paid)",
@@ -138,6 +208,52 @@ app.get("/", (c) => {
       "POST /simulate          — Simulate traffic",
     ],
   });
+});
+
+// Health endpoint with RPC + program reachability check
+app.get("/health", async (c) => {
+  const connection = getConnection();
+  const uptimeMs = Date.now() - startedAt;
+
+  let rpcOk = false;
+  let rpcLatencyMs = -1;
+  let programReachable = false;
+
+  try {
+    const t0 = Date.now();
+    const slot = await connection.getSlot();
+    rpcLatencyMs = Date.now() - t0;
+    rpcOk = slot > 0;
+  } catch {
+    rpcOk = false;
+  }
+
+  if (rpcOk) {
+    try {
+      const info = await connection.getAccountInfo(PROGRAM_ID);
+      programReachable = !!info?.executable;
+    } catch {
+      programReachable = false;
+    }
+  }
+
+  const healthy = rpcOk && programReachable;
+  return c.json(
+    {
+      status: healthy ? "healthy" : "degraded",
+      uptime: `${Math.floor(uptimeMs / 1000)}s`,
+      agents: runningAgents.size,
+      rpc: {
+        connected: rpcOk,
+        latencyMs: rpcLatencyMs,
+      },
+      program: {
+        id: PROGRAM_ID.toBase58(),
+        reachable: programReachable,
+      },
+    },
+    healthy ? 200 : 503
+  );
 });
 
 // List all running agents
@@ -300,7 +416,14 @@ const SIMULATION_PARAMS: Record<string, Record<string, string>> = {
 };
 
 app.post("/simulate", async (c) => {
-  const { calls = 10, targetMint } = await c.req.json().catch(() => ({}));
+  const body = await c.req.json().catch(() => ({}));
+  const rawCalls = Number(body.calls) || 10;
+  const calls = Math.min(Math.max(1, Math.floor(rawCalls)), MAX_SIMULATE_CALLS);
+  const targetMint =
+    typeof body.targetMint === "string" && body.targetMint.length <= 64
+      ? body.targetMint
+      : undefined;
+
   const results: any[] = [];
   const agents = Array.from(runningAgents.values());
 
@@ -371,7 +494,8 @@ function startAutoSpawnLoop() {
 
 async function main() {
   console.log("═══════════════════════════════════════════");
-  console.log("  🐍 HYDRA — Self-Replicating Agent Economy");
+  console.log("  HYDRA — Self-Replicating Agent Economy");
+  console.log("  v0.3.0 | Solana Devnet | Anchor 0.32.1");
   console.log("═══════════════════════════════════════════\n");
 
   const rootAgent = await initRootAgent();
@@ -385,7 +509,7 @@ async function main() {
 
   console.log(`\nStarting HTTP server on port ${PORT}...`);
 
-  Bun.serve({
+  const server = Bun.serve({
     port: PORT,
     fetch: app.fetch,
   });
@@ -393,18 +517,27 @@ async function main() {
   // Start background auto-spawn loop
   startAutoSpawnLoop();
 
-  console.log(`\n✅ Hydra is alive at http://localhost:${PORT}`);
+  console.log(`\n--- Hydra is alive at http://localhost:${PORT} ---`);
   console.log(`\nEndpoints:`);
-  console.log(`  GET  http://localhost:${PORT}/agents    — List agents`);
-  console.log(`  GET  http://localhost:${PORT}/tree      — Agent tree`);
-  console.log(`  GET  http://localhost:${PORT}/stats     — Economy stats`);
-  console.log(`  GET  http://localhost:${PORT}/on-chain  — On-chain state`);
-  console.log(
-    `  POST http://localhost:${PORT}/service/${rootAgent.publicKey.toBase58()} — Use service`
-  );
-  console.log(
-    `  POST http://localhost:${PORT}/simulate  — Simulate traffic\n`
-  );
+  console.log(`  GET  /health            — Health check + RPC status`);
+  console.log(`  GET  /agents            — List agents`);
+  console.log(`  GET  /tree              — Agent tree`);
+  console.log(`  GET  /stats             — Economy stats`);
+  console.log(`  GET  /on-chain          — On-chain state`);
+  console.log(`  POST /service/:wallet   — Use service`);
+  console.log(`  POST /simulate          — Simulate traffic\n`);
+  console.log(`Program: ${PROGRAM_ID.toBase58()}`);
+  console.log(`Dashboard: open app/index.html in browser\n`);
+
+  // Graceful shutdown
+  const shutdown = () => {
+    console.log("\nShutting down Hydra...");
+    server.stop();
+    console.log("Server stopped. Agents: " + runningAgents.size);
+    process.exit(0);
+  };
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 main().catch(console.error);

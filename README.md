@@ -328,6 +328,7 @@ Base URL: `http://localhost:3100`
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/` | Service info and available endpoints |
+| `GET` | `/health` | Health check: RPC connectivity, program reachability, uptime |
 | `GET` | `/agents` | List all running agents with their state |
 | `GET` | `/agents/:wallet` | Get specific agent by wallet address |
 | `GET` | `/tree` | Agent lineage tree (nested structure) |
@@ -507,7 +508,9 @@ hydra/
     ├── ARCHITECTURE.md         Deep technical architecture guide
     ├── API.md                  Complete API reference with schemas
     ├── ECONOMIC-MODEL.md       Economic model, game theory, growth analysis
-    └── PROGRAM.md              Solana program reference
+    ├── PROGRAM.md              Solana program reference
+    ├── SECURITY.md             Threat model, controls, known limitations
+    └── TESTING.md              Manual test procedures and troubleshooting
 ```
 
 ---
@@ -567,25 +570,37 @@ All on-chain calls are wrapped in try/catch with logging. The agent continues op
 - **Revenue share bounds** — `revenue_share_bps <= 10_000` enforced on-chain
 - **Active check** — Inactive agents cannot record earnings or distribute revenue
 
-### Runtime Safety
+### Runtime Safety (v0.3.0)
 
+- **Rate limiting** — Per-IP sliding window (60 req/min), prevents DoS
+- **CORS restriction** — Origin whitelist (localhost only), not wildcard
+- **Security headers** — X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy
+- **Input validation** — All Solana addresses validated before use, simulate calls capped at 100
+- **XSS prevention** — All user-controlled strings HTML-escaped in dashboard
+- **Retry with backoff** — Exponential backoff on RPC failures (3 attempts, 500ms base)
 - **Keypair isolation** — Each agent has its own keypair, generated at spawn time
 - **Best-effort RPC** — All on-chain calls are non-blocking and failure-tolerant
 - **No secret exposure** — Keypairs are stored locally, never sent over HTTP
-- **CORS enabled** — Dashboard access only from local origin
+- **Graceful shutdown** — Clean SIGINT/SIGTERM handling
+- **Connection pooling** — Singleton RPC connection avoids socket exhaustion
+
+For the full security analysis and known limitations, see [docs/SECURITY.md](docs/SECURITY.md).
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology | Why |
-|-------|-----------|-----|
-| On-chain program | Anchor 0.32.1 (Rust) | Type-safe Solana development, PDA management, CPI |
-| Agent runtime | Bun + TypeScript | Fast startup, native TS support, built-in HTTP server |
-| HTTP framework | Hono | Lightweight, fast, perfect for Bun |
-| RPC provider | Helius (primary) / Solana devnet (fallback) | Reliable devnet RPC with higher rate limits |
-| Dashboard | Vanilla HTML/CSS/JS | Zero build step, instant load, no framework overhead |
-| Program binary | 273KB BPF `.so` | Deployed to Solana devnet |
+| Layer | Technology | Version | Why |
+|-------|-----------|---------|-----|
+| On-chain program | Anchor (Rust) | 0.32.1 | Type-safe Solana development, PDA management, CPI, IDL generation |
+| Agent runtime | Bun | 1.2+ | Fastest JS runtime, native TS, built-in HTTP server, 3x faster startup than Node |
+| HTTP framework | Hono | 4.7+ | Ultra-lightweight (14KB), edge-ready, middleware stack, Bun-optimized |
+| Solana SDK | @solana/web3.js | 1.98+ | Standard Solana JavaScript SDK for RPC and transactions |
+| Anchor SDK | @coral-xyz/anchor | 0.32+ | TypeScript bindings for Anchor programs, IDL-driven client generation |
+| RPC provider | Helius | — | Premium devnet RPC with higher rate limits, WebSocket support |
+| Dashboard | Vanilla HTML/CSS/JS | — | Zero build step, instant load, no framework overhead |
+| Security | Rate limiting + CORS + headers | v0.3.0 | Per-IP sliding window, origin whitelist, XSS/clickjack protection |
+| Program binary | BPF `.so` | 273KB | Deployed to Solana devnet, IDL uploaded on-chain |
 
 ---
 
@@ -597,6 +612,8 @@ All on-chain calls are wrapped in try/catch with logging. The agent continues op
 | [docs/API.md](docs/API.md) | Complete HTTP API reference with request/response schemas |
 | [docs/ECONOMIC-MODEL.md](docs/ECONOMIC-MODEL.md) | Economic model, revenue math, game theory, growth projections |
 | [docs/PROGRAM.md](docs/PROGRAM.md) | Solana program reference: instructions, accounts, PDAs, events, errors |
+| [docs/SECURITY.md](docs/SECURITY.md) | Threat model, security controls, known limitations |
+| [docs/TESTING.md](docs/TESTING.md) | Manual test procedures, verification steps, troubleshooting |
 
 ---
 

@@ -23,6 +23,31 @@ function trackTx(sig: string, type: string) {
   if (recentTxSignatures.length > 50) recentTxSignatures.pop();
 }
 
+/** Retry an async function with exponential backoff */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  maxAttempts = 3,
+  baseDelayMs = 500
+): Promise<T> {
+  let lastError: Error | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err as Error;
+      if (attempt < maxAttempts) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        console.log(
+          `[anchor] ${label} attempt ${attempt}/${maxAttempts} failed, retrying in ${delay}ms...`
+        );
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
 // Load IDL
 const idlPath = path.resolve(import.meta.dir, "../../idl/hydra.json");
 const IDL = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
@@ -58,13 +83,15 @@ export async function initializeRegistry(
       // Not found — proceed to initialize
     }
 
-    const tx = await program.methods
-      .initialize()
-      .accounts({
-        authority: authority.publicKey,
-      })
-      .signers([authority])
-      .rpc();
+    const tx = await withRetry(
+      () =>
+        program.methods
+          .initialize()
+          .accounts({ authority: authority.publicKey })
+          .signers([authority])
+          .rpc(),
+      "initializeRegistry"
+    );
 
     console.log(`[anchor] Registry initialized: ${tx}`);
     trackTx(tx, "initialize");
@@ -102,14 +129,15 @@ export async function registerRootAgent(
       // Not found — proceed
     }
 
-    const tx = await program.methods
-      .registerRootAgent(name, specialization)
-      .accounts({
-        wallet: wallet,
-        authority: authority.publicKey,
-      })
-      .signers([authority])
-      .rpc();
+    const tx = await withRetry(
+      () =>
+        program.methods
+          .registerRootAgent(name, specialization)
+          .accounts({ wallet, authority: authority.publicKey })
+          .signers([authority])
+          .rpc(),
+      "registerRootAgent"
+    );
 
     console.log(`[anchor] Root agent registered: ${tx}`);
     trackTx(tx, "register_root_agent");
@@ -136,14 +164,15 @@ export async function spawnChildOnChain(
   try {
     const program = getProgram(parentWallet);
 
-    const tx = await program.methods
-      .spawnChild(name, specialization, revShareBps)
-      .accounts({
-        parentWallet: parentWallet.publicKey,
-        childWallet: childWallet,
-      })
-      .signers([parentWallet])
-      .rpc();
+    const tx = await withRetry(
+      () =>
+        program.methods
+          .spawnChild(name, specialization, revShareBps)
+          .accounts({ parentWallet: parentWallet.publicKey, childWallet })
+          .signers([parentWallet])
+          .rpc(),
+      "spawnChild"
+    );
 
     console.log(`[anchor] Child spawned on-chain: ${tx}`);
     trackTx(tx, "spawn_child");
@@ -162,13 +191,15 @@ export async function recordEarningOnChain(
   try {
     const program = getProgram(wallet);
 
-    const tx = await program.methods
-      .recordEarning(amount)
-      .accounts({
-        wallet: wallet.publicKey,
-      })
-      .signers([wallet])
-      .rpc();
+    const tx = await withRetry(
+      () =>
+        program.methods
+          .recordEarning(amount)
+          .accounts({ wallet: wallet.publicKey })
+          .signers([wallet])
+          .rpc(),
+      "recordEarning"
+    );
 
     console.log(
       `[anchor] Earning recorded: ${amount.toNumber() / LAMPORTS_PER_SOL} SOL — ${tx}`
@@ -190,14 +221,15 @@ export async function distributeToParent(
   try {
     const program = getProgram(childWallet);
 
-    const tx = await program.methods
-      .distributeToParent(amount)
-      .accounts({
-        childWallet: childWallet.publicKey,
-        parentWallet: parentWallet,
-      })
-      .signers([childWallet])
-      .rpc();
+    const tx = await withRetry(
+      () =>
+        program.methods
+          .distributeToParent(amount)
+          .accounts({ childWallet: childWallet.publicKey, parentWallet })
+          .signers([childWallet])
+          .rpc(),
+      "distributeToParent"
+    );
 
     console.log(
       `[anchor] Revenue distributed to parent: ${amount.toNumber() / LAMPORTS_PER_SOL} SOL — ${tx}`
