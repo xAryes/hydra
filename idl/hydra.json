@@ -1,0 +1,818 @@
+{
+  "address": "HmHxoZHi5GN3187RoXPDAXcjY5j1ghTdXn54u9pVzrvp",
+  "metadata": {
+    "name": "hydra",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Self-replicating agent economy on Solana"
+  },
+  "instructions": [
+    {
+      "name": "deactivate_agent",
+      "docs": [
+        "Deactivate an agent."
+      ],
+      "discriminator": [
+        205,
+        171,
+        239,
+        225,
+        82,
+        126,
+        96,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "agent.wallet",
+                "account": "AgentAccount"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "distribute_to_parent",
+      "docs": [
+        "Distribute SOL revenue from child to parent via system transfer."
+      ],
+      "discriminator": [
+        165,
+        17,
+        210,
+        207,
+        53,
+        28,
+        235,
+        57
+      ],
+      "accounts": [
+        {
+          "name": "child_agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "child_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "parent_agent",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "parent_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "child_wallet",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "parent_wallet",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "Initialize the Hydra registry. Called once."
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "record_earning",
+      "docs": [
+        "Record earnings for an agent (called by agent's own wallet)."
+      ],
+      "discriminator": [
+        146,
+        64,
+        247,
+        159,
+        128,
+        80,
+        44,
+        56
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "wallet",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "register_root_agent",
+      "docs": [
+        "Register the root agent (no parent). Only callable by registry authority."
+      ],
+      "discriminator": [
+        206,
+        102,
+        146,
+        202,
+        63,
+        197,
+        18,
+        58
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "wallet"
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "registry"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "specialization",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "spawn_child",
+      "docs": [
+        "Parent agent spawns a child agent."
+      ],
+      "discriminator": [
+        57,
+        254,
+        127,
+        116,
+        244,
+        20,
+        212,
+        84
+      ],
+      "accounts": [
+        {
+          "name": "registry",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "parent_agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "parent_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "child_agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "child_wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "parent_wallet",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "child_wallet"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "specialization",
+          "type": "string"
+        },
+        {
+          "name": "revenue_share_bps",
+          "type": "u16"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "AgentAccount",
+      "discriminator": [
+        241,
+        119,
+        69,
+        140,
+        233,
+        9,
+        112,
+        50
+      ]
+    },
+    {
+      "name": "Registry",
+      "discriminator": [
+        47,
+        174,
+        110,
+        246,
+        184,
+        182,
+        252,
+        218
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AgentDeactivated",
+      "discriminator": [
+        138,
+        251,
+        82,
+        87,
+        119,
+        148,
+        20,
+        180
+      ]
+    },
+    {
+      "name": "AgentRegistered",
+      "discriminator": [
+        191,
+        78,
+        217,
+        54,
+        232,
+        100,
+        189,
+        85
+      ]
+    },
+    {
+      "name": "AgentSpawned",
+      "discriminator": [
+        229,
+        125,
+        60,
+        41,
+        61,
+        109,
+        254,
+        34
+      ]
+    },
+    {
+      "name": "EarningRecorded",
+      "discriminator": [
+        207,
+        235,
+        171,
+        216,
+        168,
+        79,
+        174,
+        197
+      ]
+    },
+    {
+      "name": "RevenueDistributed",
+      "discriminator": [
+        78,
+        195,
+        188,
+        214,
+        203,
+        219,
+        199,
+        87
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NameTooLong",
+      "msg": "Agent name exceeds maximum length"
+    },
+    {
+      "code": 6001,
+      "name": "SpecTooLong",
+      "msg": "Specialization exceeds maximum length"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidRevenueShare",
+      "msg": "Revenue share basis points must be <= 10000"
+    },
+    {
+      "code": 6003,
+      "name": "AgentInactive",
+      "msg": "Agent is not active"
+    },
+    {
+      "code": 6004,
+      "name": "MaxDepthReached",
+      "msg": "Maximum agent tree depth reached"
+    },
+    {
+      "code": 6005,
+      "name": "ZeroAmount",
+      "msg": "Amount must be greater than zero"
+    },
+    {
+      "code": 6006,
+      "name": "NoParentAgent",
+      "msg": "Agent has no parent"
+    }
+  ],
+  "types": [
+    {
+      "name": "AgentAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "parent",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "specialization",
+            "type": "string"
+          },
+          {
+            "name": "total_earned",
+            "type": "u64"
+          },
+          {
+            "name": "total_distributed_to_parent",
+            "type": "u64"
+          },
+          {
+            "name": "children_count",
+            "type": "u64"
+          },
+          {
+            "name": "depth",
+            "type": "u8"
+          },
+          {
+            "name": "revenue_share_bps",
+            "type": "u16"
+          },
+          {
+            "name": "is_active",
+            "type": "bool"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentDeactivated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "parent",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "specialization",
+            "type": "string"
+          },
+          {
+            "name": "depth",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AgentSpawned",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "child",
+            "type": "pubkey"
+          },
+          {
+            "name": "parent",
+            "type": "pubkey"
+          },
+          {
+            "name": "child_wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "specialization",
+            "type": "string"
+          },
+          {
+            "name": "depth",
+            "type": "u8"
+          },
+          {
+            "name": "revenue_share_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EarningRecorded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "agent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_earned",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Registry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_agents",
+            "type": "u64"
+          },
+          {
+            "name": "total_earnings",
+            "type": "u64"
+          },
+          {
+            "name": "total_spawns",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RevenueDistributed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "child",
+            "type": "pubkey"
+          },
+          {
+            "name": "parent",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "total_distributed",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}

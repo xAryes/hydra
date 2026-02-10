@@ -1,0 +1,12 @@
+.env
+.env.local
+node_modules/
+dist/
+target/
+.anchor/
+test-ledger/
+*.so
+deploy-keypair.json
+.hydra-root.json
+.DS_Store
+bun.lock

@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "resolveJsonModule": true,
+    "declaration": true,
+    "types": ["bun-types"]
+  },
+  "include": ["agent/**/*.ts", "app/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", "target"]
+}
