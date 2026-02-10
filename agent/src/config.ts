@@ -51,3 +51,11 @@ export function getAgentPda(wallet: PublicKey): [PublicKey, number] {
     PROGRAM_ID
   );
 }
+
+export function loadDeployKeypair(): Keypair {
+  const deployPath = path.resolve(
+    import.meta.dir,
+    "../../deploy-keypair.json"
+  );
+  return loadKeypair(deployPath);
+}

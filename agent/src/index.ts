@@ -1,8 +1,20 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { Keypair, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Keypair, LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import { HydraAgent, runningAgents } from "./hydra-agent.js";
-import { getConnection, SPECIALIZATIONS } from "./config.js";
+import {
+  getConnection,
+  SPECIALIZATIONS,
+  PROGRAM_ID,
+  loadDeployKeypair,
+} from "./config.js";
+import {
+  initializeRegistry,
+  registerRootAgent,
+  fetchRegistry,
+  fetchAllAgentAccounts,
+  recentTxSignatures,
+} from "./anchor-client.js";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -74,6 +86,37 @@ async function initRootAgent(): Promise<HydraAgent> {
 }
 
 // ============================================================================
+// On-chain initialization
+// ============================================================================
+
+async function initOnChain(rootWallet: PublicKey): Promise<void> {
+  try {
+    const deployKeypair = loadDeployKeypair();
+    console.log(
+      `Deploy authority: ${deployKeypair.publicKey.toBase58()}`
+    );
+
+    // Initialize registry (idempotent)
+    await initializeRegistry(deployKeypair);
+    console.log("✅ Registry initialized");
+
+    // Register root agent (idempotent)
+    await registerRootAgent(
+      deployKeypair,
+      rootWallet,
+      "hydra-root",
+      "token-risk-analysis"
+    );
+    console.log("✅ Root agent registered on-chain");
+  } catch (err) {
+    console.error(
+      "⚠️  On-chain initialization failed (non-critical):",
+      (err as Error).message
+    );
+  }
+}
+
+// ============================================================================
 // API Routes
 // ============================================================================
 
@@ -81,8 +124,9 @@ async function initRootAgent(): Promise<HydraAgent> {
 app.get("/", (c) => {
   return c.json({
     name: "Hydra — Self-Replicating Agent Economy",
-    version: "0.1.0",
+    version: "0.2.0",
     agents: runningAgents.size,
+    programId: PROGRAM_ID.toBase58(),
     endpoints: [
       "GET  /                  — This info",
       "GET  /agents            — All running agents",
@@ -90,6 +134,8 @@ app.get("/", (c) => {
       "POST /service/:wallet   — Call agent service (paid)",
       "GET  /tree              — Agent lineage tree",
       "GET  /stats             — Economy stats",
+      "GET  /on-chain          — On-chain state from Solana",
+      "POST /simulate          — Simulate traffic",
     ],
   });
 });
@@ -119,7 +165,6 @@ app.post("/service/:wallet", async (c) => {
     params = await c.req.json();
   } catch {
     params = {};
-    // Try query params
     for (const [key, val] of Object.entries(c.req.query())) {
       if (val) params[key] = val;
     }
@@ -151,6 +196,7 @@ app.get("/tree", (c) => {
       depth: agentInfo!.depth,
       totalEarned: agentInfo!.totalEarned,
       serviceCallCount: agentInfo!.serviceCallCount,
+      parentWallet: agentInfo!.parentWallet,
       children: agentInfo!.children.map((child) => {
         const childAgent = agents.find((a) => a.wallet === child.wallet);
         if (childAgent) return buildTree(childAgent);
@@ -186,9 +232,72 @@ app.get("/stats", (c) => {
   });
 });
 
+// On-chain state endpoint
+app.get("/on-chain", async (c) => {
+  try {
+    const registry = await fetchRegistry();
+    const agents = await fetchAllAgentAccounts();
+
+    return c.json({
+      programId: PROGRAM_ID.toBase58(),
+      registry: registry
+        ? {
+            authority: registry.authority.toBase58(),
+            totalAgents: registry.totalAgents.toNumber(),
+            totalEarnings: registry.totalEarnings.toNumber() / LAMPORTS_PER_SOL,
+            totalSpawns: registry.totalSpawns.toNumber(),
+          }
+        : null,
+      agents: agents.map((a: any) => ({
+        pda: a.publicKey.toBase58(),
+        wallet: a.account.wallet.toBase58(),
+        parent: a.account.parent.toBase58(),
+        name: a.account.name,
+        specialization: a.account.specialization,
+        totalEarned: a.account.totalEarned.toNumber() / LAMPORTS_PER_SOL,
+        totalDistributedToParent:
+          a.account.totalDistributedToParent.toNumber() / LAMPORTS_PER_SOL,
+        childrenCount: a.account.childrenCount.toNumber(),
+        depth: a.account.depth,
+        revenueShareBps: a.account.revenueShareBps,
+        isActive: a.account.isActive,
+        createdAt: a.account.createdAt.toNumber(),
+      })),
+      recentTransactions: recentTxSignatures.slice(0, 20),
+    });
+  } catch (err) {
+    return c.json({
+      programId: PROGRAM_ID.toBase58(),
+      registry: null,
+      agents: [],
+      recentTransactions: recentTxSignatures.slice(0, 20),
+      error: (err as Error).message,
+    });
+  }
+});
+
 // ============================================================================
 // Simulation endpoint (for demo: simulate traffic to trigger spawning)
 // ============================================================================
+
+// Default params for each specialization in simulation mode
+const SIMULATION_PARAMS: Record<string, Record<string, string>> = {
+  "token-risk-analysis": {
+    mint: "So11111111111111111111111111111111111111112",
+  },
+  "wallet-behavior-scoring": {
+    address: "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
+  },
+  "protocol-health-monitor": {
+    programId: PROGRAM_ID.toBase58(),
+  },
+  "mev-detection": {
+    address: "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
+  },
+  "liquidity-analysis": {
+    pool: "58oQChx4yWmvKdwLLZzBi4ChoCc2fqCUWBkwMihLYQo2", // SOL-USDC Raydium
+  },
+};
 
 app.post("/simulate", async (c) => {
   const { calls = 10, targetMint } = await c.req.json().catch(() => ({}));
@@ -201,16 +310,11 @@ app.post("/simulate", async (c) => {
     const info = agent.info;
 
     try {
-      let params: Record<string, string> = {};
-      if (info.specialization === "token-risk-analysis") {
-        params = {
-          mint: targetMint || "So11111111111111111111111111111111111111112",
-        };
-      } else if (info.specialization === "wallet-behavior-scoring") {
-        params = {
-          address:
-            targetMint || "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg",
-        };
+      let params: Record<string, string> =
+        SIMULATION_PARAMS[info.specialization] || {};
+
+      if (targetMint && info.specialization === "token-risk-analysis") {
+        params = { mint: targetMint };
       }
 
       const result = await agent.handleServiceCall(params);
@@ -222,6 +326,7 @@ app.post("/simulate", async (c) => {
     } catch (err) {
       results.push({
         agent: info.name,
+        specialization: info.specialization,
         error: (err as Error).message,
       });
     }
@@ -241,6 +346,26 @@ app.post("/simulate", async (c) => {
 });
 
 // ============================================================================
+// Background auto-spawn loop
+// ============================================================================
+
+function startAutoSpawnLoop() {
+  setInterval(async () => {
+    for (const agent of runningAgents.values()) {
+      try {
+        await agent.checkAndSpawn();
+      } catch (err) {
+        console.error(
+          `[auto-spawn] Error checking ${agent.info.name}:`,
+          (err as Error).message
+        );
+      }
+    }
+  }, 30_000);
+  console.log("🔄 Auto-spawn loop started (every 30s)");
+}
+
+// ============================================================================
 // Start
 // ============================================================================
 
@@ -253,6 +378,11 @@ async function main() {
   console.log(`\nRoot agent: ${rootAgent.info.name}`);
   console.log(`Specialization: ${rootAgent.info.specialization}`);
   console.log(`Wallet: ${rootAgent.publicKey.toBase58()}`);
+
+  // On-chain initialization (best effort)
+  console.log("\n--- On-Chain Initialization ---");
+  await initOnChain(rootAgent.publicKey);
+
   console.log(`\nStarting HTTP server on port ${PORT}...`);
 
   Bun.serve({
@@ -260,11 +390,15 @@ async function main() {
     fetch: app.fetch,
   });
 
+  // Start background auto-spawn loop
+  startAutoSpawnLoop();
+
   console.log(`\n✅ Hydra is alive at http://localhost:${PORT}`);
   console.log(`\nEndpoints:`);
   console.log(`  GET  http://localhost:${PORT}/agents    — List agents`);
   console.log(`  GET  http://localhost:${PORT}/tree      — Agent tree`);
   console.log(`  GET  http://localhost:${PORT}/stats     — Economy stats`);
+  console.log(`  GET  http://localhost:${PORT}/on-chain  — On-chain state`);
   console.log(
     `  POST http://localhost:${PORT}/service/${rootAgent.publicKey.toBase58()} — Use service`
   );

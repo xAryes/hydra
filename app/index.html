@@ -25,6 +25,8 @@
       min-height: 100vh;
     }
     .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
 
     /* Header */
     .header {
@@ -46,6 +48,14 @@
       font-size: 16px;
       margin-top: 8px;
     }
+    .program-link {
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--cyan);
+      opacity: 0.8;
+    }
+    .program-link:hover { opacity: 1; }
 
     /* Stats strip */
     .stats {
@@ -68,16 +78,29 @@
     .stat-card .value.amber { color: var(--amber); }
     .stat-card .value.cyan { color: var(--cyan); }
 
-    /* Agent tree */
-    .tree-section { margin-bottom: 32px; }
-    .tree-section h2 {
-      font-size: 20px;
-      margin-bottom: 16px;
+    /* Tabs */
+    .tabs {
       display: flex;
-      align-items: center;
-      gap: 8px;
+      gap: 4px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0;
     }
+    .tab {
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
 
+    /* Agent tree */
     .agent-tree {
       display: flex;
       flex-direction: column;
@@ -97,6 +120,7 @@
     .agent-node.root { border-left: 3px solid var(--accent); }
     .agent-node.child { border-left: 3px solid var(--cyan); margin-left: 40px; }
     .agent-node.grandchild { border-left: 3px solid var(--green); margin-left: 80px; }
+    .agent-node.deep { border-left: 3px solid var(--amber); margin-left: 120px; }
 
     .agent-header {
       display: flex;
@@ -114,16 +138,24 @@
       padding: 2px 8px;
       border-radius: 4px;
     }
+    .agent-wallet {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-family: monospace;
+    }
     .agent-meta {
       display: flex;
       gap: 24px;
       margin-top: 8px;
       font-size: 13px;
       color: var(--muted);
+      flex-wrap: wrap;
     }
     .agent-meta span { display: flex; align-items: center; gap: 4px; }
     .agent-meta .earned { color: var(--green); }
     .agent-meta .calls { color: var(--amber); }
+    .agent-meta .revenue-flow { color: var(--accent); font-size: 11px; }
 
     .pulse {
       width: 8px;
@@ -138,17 +170,71 @@
       50% { opacity: 0.3; }
     }
 
-    /* Connection lines */
-    .spawn-line {
-      width: 2px;
-      height: 24px;
-      background: var(--border);
-      margin-left: 20px;
+    /* On-chain section */
+    .onchain-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
     }
-    .child .spawn-line { margin-left: 60px; }
+    .onchain-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .onchain-card h3 {
+      font-size: 14px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    .onchain-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .onchain-row:last-child { border-bottom: none; }
+    .onchain-row .label { color: var(--muted); }
+    .onchain-row .val { font-weight: 600; }
+    .onchain-row .val.green { color: var(--green); }
+    .onchain-row .val.cyan { color: var(--cyan); }
+
+    /* Live transactions */
+    .tx-list {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .tx-entry {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .tx-entry:last-child { border-bottom: none; }
+    .tx-sig { font-family: monospace; color: var(--cyan); }
+    .tx-type {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .tx-type.initialize { background: rgba(124, 58, 237, 0.2); color: var(--accent); }
+    .tx-type.register_root_agent { background: rgba(34, 197, 94, 0.2); color: var(--green); }
+    .tx-type.spawn_child { background: rgba(6, 182, 212, 0.2); color: var(--cyan); }
+    .tx-type.record_earning { background: rgba(245, 158, 11, 0.2); color: var(--amber); }
+    .tx-type.distribute_to_parent { background: rgba(124, 58, 237, 0.2); color: var(--accent); }
 
     /* Activity log */
-    .log-section h2 { margin-bottom: 16px; }
     .log {
       background: var(--card);
       border: 1px solid var(--border);
@@ -208,10 +294,20 @@
     .status-bar .connected { color: var(--green); }
     .status-bar .disconnected { color: var(--red); }
 
+    .section-title {
+      font-size: 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     @media (max-width: 768px) {
       .stats { grid-template-columns: repeat(2, 1fr); }
+      .onchain-grid { grid-template-columns: 1fr; }
       .agent-node.child { margin-left: 20px; }
       .agent-node.grandchild { margin-left: 40px; }
+      .agent-node.deep { margin-left: 60px; }
     }
   </style>
 </head>
@@ -220,10 +316,14 @@
     <div class="header">
       <h1>HYDRA</h1>
       <p>Self-Replicating Agent Economy on Solana</p>
+      <a class="program-link" id="program-link" href="#" target="_blank">
+        Program: loading...
+      </a>
     </div>
 
     <div class="status-bar">
       <span>API: <span id="api-status" class="disconnected">connecting...</span></span>
+      <span>On-chain: <span id="chain-status" class="disconnected">--</span></span>
       <span>Last update: <span id="last-update">—</span></span>
     </div>
 
@@ -252,15 +352,49 @@
       <button id="btn-refresh" onclick="refresh()" class="secondary">Refresh</button>
     </div>
 
-    <div class="tree-section">
-      <h2><span class="pulse"></span> Agent Lineage Tree</h2>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('agents')">Agent Tree</div>
+      <div class="tab" onclick="switchTab('onchain')">On-Chain State</div>
+      <div class="tab" onclick="switchTab('transactions')">Live Transactions</div>
+      <div class="tab" onclick="switchTab('log')">Activity Log</div>
+    </div>
+
+    <!-- Tab: Agent Tree -->
+    <div id="tab-agents" class="tab-content active">
       <div id="agent-tree" class="agent-tree">
         <div style="color: var(--muted); padding: 20px; text-align: center;">Connecting to Hydra...</div>
       </div>
     </div>
 
-    <div class="log-section">
-      <h2>Activity Log</h2>
+    <!-- Tab: On-Chain State -->
+    <div id="tab-onchain" class="tab-content">
+      <div class="onchain-grid">
+        <div class="onchain-card">
+          <h3>Registry (On-Chain)</h3>
+          <div id="registry-data">
+            <div style="color: var(--muted); text-align: center; padding: 20px;">Loading...</div>
+          </div>
+        </div>
+        <div class="onchain-card">
+          <h3>Verified Agents (On-Chain)</h3>
+          <div id="onchain-agents">
+            <div style="color: var(--muted); text-align: center; padding: 20px;">Loading...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Live Transactions -->
+    <div id="tab-transactions" class="tab-content">
+      <h2 class="section-title"><span class="pulse"></span> Live Transactions</h2>
+      <div id="tx-list" class="tx-list">
+        <div style="color: var(--muted); text-align: center; padding: 20px;">No transactions yet</div>
+      </div>
+    </div>
+
+    <!-- Tab: Activity Log -->
+    <div id="tab-log" class="tab-content">
+      <h2 class="section-title">Activity Log</h2>
       <div id="activity-log" class="log">
         <div class="log-entry"><span class="time">--:--:--</span> Waiting for connection...</div>
       </div>
@@ -269,7 +403,31 @@
 
   <script>
     const API = 'http://localhost:3100';
+    const EXPLORER = 'https://explorer.solana.com';
+    const CLUSTER = '?cluster=devnet';
     const log = [];
+    let programId = '';
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function truncateWallet(w) {
+      if (!w) return '';
+      return escapeHtml(w.slice(0, 4) + '...' + w.slice(-4));
+    }
+
+    function explorerLink(type, id) {
+      return `${EXPLORER}/${type}/${id}${CLUSTER}`;
+    }
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.tab-content#tab-${name}`).classList.add('active');
+      event.target.classList.add('active');
+    }
 
     function addLog(type, message) {
       const now = new Date().toLocaleTimeString();
@@ -281,31 +439,110 @@
     function renderLog() {
       const el = document.getElementById('activity-log');
       el.innerHTML = log.map(e =>
-        `<div class="log-entry"><span class="time">${e.time}</span><span class="${e.type}">${e.message}</span></div>`
+        `<div class="log-entry"><span class="time">${escapeHtml(e.time)}</span><span class="${escapeHtml(e.type)}">${escapeHtml(e.message)}</span></div>`
       ).join('');
     }
 
     function renderTree(tree, depth = 0) {
       if (!tree) return '';
-      const cls = depth === 0 ? 'root' : depth === 1 ? 'child' : 'grandchild';
+      const cls = depth === 0 ? 'root' : depth === 1 ? 'child' : depth === 2 ? 'grandchild' : 'deep';
       const earned = (tree.totalEarned / 1e9).toFixed(4);
       const children = (tree.children || []).map(c => renderTree(c, depth + 1)).join('');
+      const walletLink = tree.wallet
+        ? `<a href="${explorerLink('address', tree.wallet)}" target="_blank">${truncateWallet(tree.wallet)}</a>`
+        : '';
+      const parentInfo = tree.parentWallet
+        ? `<span class="revenue-flow">20% &rarr; <a href="${explorerLink('address', tree.parentWallet)}" target="_blank">${truncateWallet(tree.parentWallet)}</a></span>`
+        : '';
 
       return `
         <div class="agent-node ${cls}">
           <div class="agent-header">
-            <span class="agent-name"><span class="pulse"></span> ${tree.name}</span>
-            <span class="agent-spec">${tree.specialization}</span>
+            <span class="agent-name"><span class="pulse"></span> ${escapeHtml(tree.name)}</span>
+            <span class="agent-spec">${escapeHtml(tree.specialization)}</span>
           </div>
+          <div class="agent-wallet">${walletLink}</div>
           <div class="agent-meta">
             <span>Depth: ${tree.depth}</span>
             <span class="earned">Earned: ${earned} SOL</span>
             <span class="calls">Calls: ${tree.serviceCallCount || 0}</span>
             <span>Children: ${(tree.children || []).length}</span>
+            ${parentInfo}
           </div>
         </div>
         ${children}
       `;
+    }
+
+    function renderOnChain(data) {
+      // Registry
+      const regEl = document.getElementById('registry-data');
+      if (data.registry) {
+        const r = data.registry;
+        regEl.innerHTML = `
+          <div class="onchain-row"><span class="label">Authority</span><span class="val"><a href="${explorerLink('address', r.authority)}" target="_blank">${truncateWallet(r.authority)}</a></span></div>
+          <div class="onchain-row"><span class="label">Total Agents</span><span class="val cyan">${r.totalAgents}</span></div>
+          <div class="onchain-row"><span class="label">Total Earnings</span><span class="val green">${r.totalEarnings.toFixed(4)} SOL</span></div>
+          <div class="onchain-row"><span class="label">Total Spawns</span><span class="val cyan">${r.totalSpawns}</span></div>
+        `;
+        document.getElementById('chain-status').className = 'connected';
+        document.getElementById('chain-status').textContent = 'synced';
+      } else {
+        regEl.innerHTML = '<div style="color: var(--muted); padding: 12px;">Registry not initialized or unavailable</div>';
+        document.getElementById('chain-status').className = 'disconnected';
+        document.getElementById('chain-status').textContent = 'unavailable';
+      }
+
+      // On-chain agents
+      const agEl = document.getElementById('onchain-agents');
+      if (data.agents && data.agents.length > 0) {
+        agEl.innerHTML = data.agents.map(a => `
+          <div class="onchain-row" style="flex-direction: column; gap: 4px;">
+            <div style="display: flex; justify-content: space-between;">
+              <span style="font-weight: 600;">${escapeHtml(a.name)}</span>
+              <span class="agent-spec">${escapeHtml(a.specialization)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+              <a href="${explorerLink('address', a.wallet)}" target="_blank">${truncateWallet(a.wallet)}</a>
+              <span class="green">${a.totalEarned.toFixed(4)} SOL earned</span>
+            </div>
+            ${a.totalDistributedToParent > 0 ? `<div style="font-size: 11px; color: var(--accent);">Distributed to parent: ${a.totalDistributedToParent.toFixed(4)} SOL</div>` : ''}
+          </div>
+        `).join('');
+      } else {
+        agEl.innerHTML = '<div style="color: var(--muted); padding: 12px;">No on-chain agents found</div>';
+      }
+
+      // Transactions
+      const txEl = document.getElementById('tx-list');
+      if (data.recentTransactions && data.recentTransactions.length > 0) {
+        txEl.innerHTML = data.recentTransactions.map(tx => `
+          <div class="tx-entry">
+            <span class="tx-type ${tx.type}">${tx.type}</span>
+            <a class="tx-sig" href="${explorerLink('tx', tx.sig)}" target="_blank">${tx.sig.slice(0, 16)}...</a>
+            <span style="color: var(--muted); font-size: 11px;">${new Date(tx.ts).toLocaleTimeString()}</span>
+          </div>
+        `).join('');
+      } else {
+        txEl.innerHTML = '<div style="color: var(--muted); text-align: center; padding: 20px;">No transactions yet — simulate calls to generate on-chain activity</div>';
+      }
+    }
+
+    async function refreshOnChain() {
+      try {
+        const res = await fetch(`${API}/on-chain`);
+        const data = await res.json();
+        if (data.programId) {
+          programId = data.programId;
+          const link = document.getElementById('program-link');
+          link.href = explorerLink('address', programId);
+          link.textContent = `Program: ${truncateWallet(programId)}`;
+        }
+        renderOnChain(data);
+      } catch (err) {
+        document.getElementById('chain-status').className = 'disconnected';
+        document.getElementById('chain-status').textContent = 'error';
+      }
     }
 
     async function refresh() {
@@ -329,11 +566,16 @@
         document.getElementById('api-status').className = 'disconnected';
         document.getElementById('api-status').textContent = 'disconnected';
       }
+
+      // Also refresh on-chain data
+      await refreshOnChain();
     }
 
     async function simulate(count) {
       const btn = document.getElementById('btn-simulate');
+      const btn50 = document.getElementById('btn-simulate-50');
       btn.disabled = true;
+      btn50.disabled = true;
       btn.textContent = `Simulating ${count}...`;
       addLog('service', `Simulating ${count} service calls...`);
 
@@ -348,6 +590,8 @@
         data.results.forEach(r => {
           if (r.success) {
             addLog('earn', `${r.agent} (${r.specialization}) completed service call`);
+          } else if (r.error) {
+            addLog('service', `${r.agent}: ${r.error}`);
           }
         });
 
@@ -361,6 +605,7 @@
       }
 
       btn.disabled = false;
+      btn50.disabled = false;
       btn.textContent = 'Simulate 10 Calls';
     }
 

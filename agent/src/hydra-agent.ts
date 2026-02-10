@@ -21,6 +21,39 @@ import {
 } from "./config.js";
 import { analyzeTokenRisk, type TokenRiskReport } from "./services/token-risk.js";
 import { analyzeWallet, type WalletReport } from "./services/wallet-analysis.js";
+import {
+  analyzeProtocolHealth,
+  type ProtocolHealthReport,
+} from "./services/protocol-health.js";
+import { detectMev, type MevReport } from "./services/mev-detection.js";
+import {
+  analyzeLiquidity,
+  type LiquidityReport,
+} from "./services/liquidity-analysis.js";
+import {
+  recordEarningOnChain as anchorRecordEarning,
+  spawnChildOnChain,
+  distributeToParent,
+} from "./anchor-client.js";
+
+/** Validate a base58 Solana address. Throws on invalid input. */
+function validateAddress(address: string, label: string): void {
+  if (!address || typeof address !== "string") {
+    throw new Error(`Missing '${label}' parameter`);
+  }
+  try {
+    new PublicKey(address);
+  } catch {
+    throw new Error(`Invalid Solana address for '${label}': ${address}`);
+  }
+}
+
+export type ServiceResult =
+  | TokenRiskReport
+  | WalletReport
+  | ProtocolHealthReport
+  | MevReport
+  | LiquidityReport;
 
 export interface AgentState {
   wallet: Keypair;
@@ -46,7 +79,6 @@ export class HydraAgent {
   private state: AgentState;
   private connection: Connection;
   private provider: AnchorProvider;
-  private idl: any;
 
   constructor(state: AgentState) {
     this.state = state;
@@ -78,19 +110,20 @@ export class HydraAgent {
       })),
       isRoot: this.state.isRoot,
       port: this.state.port,
+      parentWallet: this.state.parentWallet?.toBase58() || null,
     };
   }
 
   /** Process a service request and record earnings */
   async handleServiceCall(
     params: Record<string, string>
-  ): Promise<TokenRiskReport | WalletReport> {
-    let result: TokenRiskReport | WalletReport;
+  ): Promise<ServiceResult> {
+    let result: ServiceResult;
 
     switch (this.state.specialization) {
       case "token-risk-analysis": {
         const mint = params.mint;
-        if (!mint) throw new Error("Missing 'mint' parameter");
+        validateAddress(mint, "mint");
         result = await analyzeTokenRisk(
           this.connection,
           mint,
@@ -100,10 +133,40 @@ export class HydraAgent {
       }
       case "wallet-behavior-scoring": {
         const address = params.address;
-        if (!address) throw new Error("Missing 'address' parameter");
+        validateAddress(address, "address");
         result = await analyzeWallet(
           this.connection,
           address,
+          this.publicKey.toBase58()
+        );
+        break;
+      }
+      case "protocol-health-monitor": {
+        const programId = params.programId || params.program;
+        validateAddress(programId, "programId");
+        result = await analyzeProtocolHealth(
+          this.connection,
+          programId,
+          this.publicKey.toBase58()
+        );
+        break;
+      }
+      case "mev-detection": {
+        const target = params.address || params.target;
+        validateAddress(target, "address");
+        result = await detectMev(
+          this.connection,
+          target,
+          this.publicKey.toBase58()
+        );
+        break;
+      }
+      case "liquidity-analysis": {
+        const pool = params.pool || params.poolAddress;
+        validateAddress(pool, "pool");
+        result = await analyzeLiquidity(
+          this.connection,
+          pool,
           this.publicKey.toBase58()
         );
         break;
@@ -120,10 +183,23 @@ export class HydraAgent {
 
     // Record on-chain (best effort)
     try {
-      await this.recordEarningOnChain(SERVICE_PRICE_LAMPORTS);
+      await anchorRecordEarning(
+        this.state.wallet,
+        new BN(SERVICE_PRICE_LAMPORTS)
+      );
     } catch (err) {
       console.log(
         `[${this.state.name}] On-chain recording failed (non-critical):`,
+        (err as Error).message
+      );
+    }
+
+    // Distribute revenue to parent (best effort)
+    try {
+      await this.distributeRevenue(SERVICE_PRICE_LAMPORTS);
+    } catch (err) {
+      console.log(
+        `[${this.state.name}] Revenue distribution failed (non-critical):`,
         (err as Error).message
       );
     }
@@ -134,20 +210,28 @@ export class HydraAgent {
     return result;
   }
 
-  /** Record earning on the Solana program */
-  private async recordEarningOnChain(amount: number): Promise<void> {
-    const [registryPda] = getRegistryPda();
-    const [agentPda] = getAgentPda(this.publicKey);
+  /** Distribute revenue share to parent agent */
+  private async distributeRevenue(earningAmount: number): Promise<void> {
+    if (!this.state.parentWallet) return; // Root agents have no parent
 
-    // Build the instruction manually using the program's instruction data
-    // For now, we log the intent — full CPI will work once IDL is generated
+    const shareAmount = Math.floor(
+      (earningAmount * REVENUE_SHARE_BPS) / 10000
+    );
+    if (shareAmount === 0) return;
+
     console.log(
-      `[${this.state.name}] Recording earning: ${amount / LAMPORTS_PER_SOL} SOL on-chain`
+      `[${this.state.name}] Distributing ${shareAmount / LAMPORTS_PER_SOL} SOL (${REVENUE_SHARE_BPS / 100}%) to parent`
+    );
+
+    await distributeToParent(
+      this.state.wallet,
+      this.state.parentWallet,
+      new BN(shareAmount)
     );
   }
 
   /** Check earnings threshold and spawn a child if ready */
-  private async checkAndSpawn(): Promise<void> {
+  async checkAndSpawn(): Promise<void> {
     if (this.state.totalEarned < SPAWN_THRESHOLD_LAMPORTS) return;
     if (this.state.depth >= 4) return; // Max depth safety
     if (this.state.children.length >= 3) return; // Max 3 children per agent
@@ -216,16 +300,22 @@ export class HydraAgent {
       console.log(`   Funding skipped: ${(err as Error).message}`);
     }
 
-    // Register on-chain (best effort)
+    // Register on-chain via Anchor (best effort)
     try {
-      await this.registerChildOnChain(childKeypair.publicKey, name, specialization);
+      await spawnChildOnChain(
+        this.state.wallet,
+        childKeypair.publicKey,
+        name,
+        specialization,
+        REVENUE_SHARE_BPS
+      );
     } catch (err) {
       console.log(
         `   On-chain registration pending: ${(err as Error).message}`
       );
     }
 
-    // Start the child agent as a new HTTP service
+    // Start the child agent as a new in-process service
     const childPort = this.state.port + this.state.children.length + 1;
     startChildAgent({
       wallet: childKeypair,
@@ -247,18 +337,6 @@ export class HydraAgent {
       spawnedAt: Date.now(),
     };
   }
-
-  /** Register child agent on the Solana program */
-  private async registerChildOnChain(
-    childWallet: PublicKey,
-    name: string,
-    specialization: string
-  ): Promise<void> {
-    console.log(
-      `   Registering child on-chain: ${name} → ${childWallet.toBase58()}`
-    );
-    // Full Anchor CPI integration happens after IDL is built
-  }
 }
 
 // Global registry of running agents
@@ -268,7 +346,6 @@ export const runningAgents: Map<string, HydraAgent> = new Map();
 function startChildAgent(state: AgentState): void {
   const agent = new HydraAgent(state);
   runningAgents.set(agent.publicKey.toBase58(), agent);
-  // The HTTP server picks up new agents from the registry
   console.log(
     `   Child agent ${state.name} running (in-process, port shared with parent)`
   );
