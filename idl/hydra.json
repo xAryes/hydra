@@ -68,7 +68,10 @@
         },
         {
           "name": "authority",
-          "signer": true
+          "signer": true,
+          "relations": [
+            "registry"
+          ]
         }
       ],
       "args": []
@@ -599,6 +602,11 @@
       "code": 6006,
       "name": "NoParentAgent",
       "msg": "Agent has no parent"
+    },
+    {
+      "code": 6007,
+      "name": "Unauthorized",
+      "msg": "Signer is not the registry authority"
     }
   ],
   "types": [
