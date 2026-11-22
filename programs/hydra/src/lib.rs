@@ -337,6 +337,7 @@ pub struct DeactivateAgent<'info> {
     #[account(
         seeds = [b"registry"],
         bump = registry.bump,
+        has_one = authority @ HydraError::Unauthorized,
     )]
     pub registry: Account<'info, Registry>,
     #[account(
@@ -414,4 +415,6 @@ pub enum HydraError {
     ZeroAmount,
     #[msg("Agent has no parent")]
     NoParentAgent,
+    #[msg("Signer is not the registry authority")]
+    Unauthorized,
 }

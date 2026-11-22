@@ -74,7 +74,10 @@ export type Hydra = {
         },
         {
           "name": "authority",
-          "signer": true
+          "signer": true,
+          "relations": [
+            "registry"
+          ]
         }
       ],
       "args": []
@@ -605,6 +608,11 @@ export type Hydra = {
       "code": 6006,
       "name": "noParentAgent",
       "msg": "Agent has no parent"
+    },
+    {
+      "code": 6007,
+      "name": "unauthorized",
+      "msg": "Signer is not the registry authority"
     }
   ],
   "types": [
